@@ -1,0 +1,76 @@
+version: '3.7'
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    deploy:
+      resources:
+        limits:
+          memory: 75M
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+  otelcol:
+    image: otel/opentelemetry-collector-contrib:0.70.0
+    container_name: otel-col
+    deploy:
+      resources:
+        limits:
+          memory: 125M
+    restart: unless-stopped
+    command: [ "--config=/etc/otelcol-config.yaml" ]
+    volumes:
+      - ./config/otel-collector/otel-collector-config.yaml:/etc/otelcol-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "9464:9464"
+      - "8888:8888"
+  jaeger:
+    image: jaegertracing/all-in-one
+    container_name: jaeger
+    command:
+      - "--memory.max-traces"
+      - "10000"
+      - "--prometheus.server-url"
+      - "http://prometheus:9090"
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+    restart: unless-stopped
+    ports:
+      - "8080:16686"
+      - "4317"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - METRICS_STORAGE_TYPE=prometheus
+  grafana:
+    image: grafana/grafana:9.1.0
+    container_name: grafana
+    deploy:
+      resources:
+        limits:
+          memory: 75M
+    ports:
+      - "3000:3000"
+  prometheus:
+    image: quay.io/prometheus/prometheus:v2.34.0
+    container_name: prometheus
+    command:
+      - --web.console.templates=/etc/prometheus/consoles
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --storage.tsdb.retention.time=1h
+      - --config.file=/etc/prometheus/prometheus-config.yaml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+      - --web.route-prefix=/
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ./config/prometheus/prometheus-config.yaml:/etc/prometheus/prometheus-config.yaml
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+    ports:
+      - "9090:9090"
